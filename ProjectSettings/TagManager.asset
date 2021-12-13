@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Hazard
   - Item
+  - Exit
   layers:
   - Default
   - TransparentFX
