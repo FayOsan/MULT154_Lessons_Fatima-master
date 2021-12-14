@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class NavPlayerMovement : MonoBehaviour
 {
-    public float speed = 60.0f;
+    public float speed = 120.0f;
     public float rotationSpeed = 10.0f;
     Rigidbody rgBody = null;
     float trans = 0;

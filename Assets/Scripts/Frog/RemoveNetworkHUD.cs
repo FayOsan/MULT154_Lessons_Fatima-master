@@ -8,7 +8,7 @@ public class RemoveNetworkHUD : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        GameObject netMgr = GameObject.Find("NetWorkManager");
+        GameObject netMgr = GameObject.Find("NetworkManager");
         NetworkManagerHUD netMgrHUD = netMgr.GetComponent<NetworkManagerHUD>();
         netMgrHUD.enabled = false;
     }

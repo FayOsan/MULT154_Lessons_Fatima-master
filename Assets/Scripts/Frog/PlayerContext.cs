@@ -19,8 +19,10 @@ public abstract class PlayerState
     public abstract void Start();
     public abstract void Update();
     public abstract void FixedUpdate();
+    public abstract void OnCollisionEnter(Collision other);
     public abstract void OnTriggerExit(Collider other);
     public abstract void OnTriggerEnter(Collider other);
+
 }
 
 public class RiverState : PlayerState
@@ -32,6 +34,7 @@ public class RiverState : PlayerState
     public RiverState(NetworkBehaviour thisObj) : base(thisObj)
     {
         stateName = "RiverLevel";
+        GameData.gamePlayStart = Time.time;
     }
     // Start is called before the first frame update
     public  override void Start()
@@ -54,16 +57,6 @@ public class RiverState : PlayerState
         direction = new Vector3(horMove, 0, verMove);
 
     }
-
-    /*private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawRay(player.transform.position, direction * 10);
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawRay(player.transform.position, rbPlayer.velocity * 5);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawCube(player.transform.position, new Vector3(6, 6, 6));
-    }*/
 
     public override void FixedUpdate()
     {
@@ -90,6 +83,11 @@ public class RiverState : PlayerState
         rbPlayer.MovePosition(spawnPoints[index].transform.position);
         rbPlayer.velocity = Vector3.zero;
     }
+
+    public override void OnCollisionEnter(Collision other)
+    {
+        throw new System.NotImplementedException();
+    }
     public override void OnTriggerEnter(Collider other)
     {
 
@@ -114,13 +112,14 @@ public class RiverState : PlayerState
 
 public class ForestState : PlayerState
 {
-    public float speed = 60.0f;
+    public float speed = 120.0f;
     public float rotationSpeed = 10.0f;
     Rigidbody rgBody = null;
     float trans = 0;
     float rotate = 0;
     private Animator anim;
     private Camera camera;
+    private Transform lookTarget;
 
     public delegate void DropHive(Vector3 pos);
     public static event DropHive DroppedHive;
@@ -129,11 +128,18 @@ public class ForestState : PlayerState
         stateName = "ForestLevel";
     }
 
-    private void Start()
+    public override void Start()
     {
+        player.transform.position = new Vector3(-20, 0.5f, -10);
+
+        Transform rabbit = player.transform.Find("Rabbit");
+        rabbit.transform.localEulerAngles = Vector3.zero;
+        rabbit.transform.localScale = Vector3.one;
         rgBody = player.GetComponent<Rigidbody>();
         anim = player.GetComponentInChildren<Animator>();
         camera = player.GetComponentInChildren<Camera>();
+        camera.enabled = true;
+        lookTarget = GameObject.Find("HeadAimTarget").transform;
     }
     public override void Update()
     {
@@ -167,7 +173,7 @@ public class ForestState : PlayerState
         trans = 0;
     }
 
-    public override void OnCollisionEnter(Collision collision)
+    /*public override void OnCollisionEnter(Collision collision)
     {
         if (collision.collider.CompareTag("Hazard"))
         {
@@ -178,14 +184,72 @@ public class ForestState : PlayerState
         {
             anim.SetTrigger("twitchLeftEar");
         }
+    }*/
+    IEnumerator ZoomOut()
+    {
+        const int ITERATIONS = 25;
+        for (int z = 0; z < 10; z++)
+        {
+            camera.transform.Translate(camera.transform.forward * -1 * 15.0f / ITERATIONS);
+            yield return new WaitForSeconds(1.0f / ITERATIONS);
+        }
+    }
+
+    public override void OnCollisionEnter(Collision other)
+    {
+        
+    }
+
+    public override void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Hazard"))
+        {
+            lookTarget.position = other.transform.position;
+            thisObject.StartCoroutine(LookAndLookAway(lookTarget.position, other.transform.position));
+        }
+
+        if (other.CompareTag("Exit"))
+        {
+            NetworkManager networkManager =
+                GameObject.Find("NetworkManager").GetComponent<NetworkManager>();
+            networkManager.ServerChangeScene("EndScene");
+        }
+    }
+
+    public override void OnTriggerExit(Collider other)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    private IEnumerator LookAndLookAway(Vector3 targetpos, Vector3 hazardPos)
+    {
+        Vector3 targetDir = targetpos - player.transform.position;
+        Vector3 hazardDir = hazardPos - player.transform.position;
+
+        float angle = Vector2.SignedAngle(new Vector2(targetpos.x, targetpos.z), new Vector2(hazardPos.x, hazardPos.z));
+
+        const int INTERVALS = 20;
+        const float INTERVAL = 0.5f / INTERVALS;
+
+        float angleInterval = angle / INTERVALS;
+
+        for (int i = 0; i < INTERVALS; i++)
+        {
+            lookTarget.RotateAround(player.transform.position, Vector3.up, -angleInterval);
+            yield return new WaitForSeconds(INTERVAL);
+        }
+
+        for (int i = 0; i < INTERVALS; i++)
+        {
+            lookTarget.RotateAround(player.transform.position, Vector3.up, -angleInterval);
+            yield return new WaitForSeconds(INTERVAL);
+        }
     }
 }
 
 public class PlayerContext : NetworkBehaviour
 {
     PlayerState currentState;
-    RiverState riverState;
-    ForestState forestState;
     // Start is called before the first frame update
     void Start()
     {
@@ -196,7 +260,18 @@ public class PlayerContext : NetworkBehaviour
             currentState = new RiverState(this);
         }
 
-        currentState.Start();
+        else if (SceneManager.GetActiveScene().name == "ForestLevel")
+        {
+            currentState = new ForestState(this);
+        }
+        else
+        {
+            this.gameObject.SetActive(false);
+        }
+        if (currentState != null)
+        {
+            currentState.Start();
+        }
     }
 
     // Update is called once per frame
@@ -213,6 +288,13 @@ public class PlayerContext : NetworkBehaviour
 
         currentState.FixedUpdate();
 
+    }
+
+    void OnCollisonEnter(Collision collision)
+    {
+        if (!isLocalPlayer) return;
+
+        currentState.OnCollisionEnter(collision);
     }
 
     void OnTriggerEnter(Collider other)
