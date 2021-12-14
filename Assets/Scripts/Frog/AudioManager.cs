@@ -9,7 +9,7 @@ public class AudioManager : MonoBehaviour
     public const string VOLUME_LEVEL_KEY = "VolumeLevel";
     public const float DEFAULT_VOLUME = 0.5f;
     // Start is called before the first frame update
-    void Start()
+    void Awake()
     {
         audioSource = GetComponent<AudioSource>();
 
